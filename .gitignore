@@ -1,0 +1,19 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+build/
+.tsbuildinfo
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

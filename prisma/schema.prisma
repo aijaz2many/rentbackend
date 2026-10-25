@@ -1,0 +1,568 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model tsmib_apartment_status {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(30)
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model tsmib_apartment_type {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(20)
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model tsmib_apartments {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  building_id                String                       @db.Uuid
+  floor_id                   String?                      @db.Uuid
+  apartment_number           String                       @db.VarChar(50)
+  block                      String?                      @db.VarChar(50)
+  apartment_type_id          String?                      @db.Uuid
+  bedrooms                   Int?
+  bathrooms                  Int?
+  area_sqft                  Decimal?                     @db.Decimal(12, 2)
+  default_rent               Decimal                      @default(0) @db.Decimal(14, 2)
+  security_deposit           Decimal?                     @default(0) @db.Decimal(14, 2)
+  status_id                  String                       @db.Uuid
+  notes                      String?
+  created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  tsmib_buildings            tsmib_buildings              @relation(fields: [building_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tsmib_floors               tsmib_floors?                @relation(fields: [floor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_documents            tsmib_documents[]
+  tsmib_expenses             tsmib_expenses[]
+  tsmib_leases               tsmib_leases[]
+  tsmib_maintenance_requests tsmib_maintenance_requests[]
+  tsmib_payments             tsmib_payments[]
+  tsmib_rent_charges         tsmib_rent_charges[]
+
+  @@unique([building_id, apartment_number], map: "uq_apartment_building_number")
+  @@index([building_id], map: "ix_apartments_building")
+  @@index([floor_id], map: "ix_apartments_floor")
+  @@index([status_id], map: "ix_apartments_status")
+}
+
+model tsmib_audit_logs {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String              @db.Uuid
+  user_id             String?             @db.Uuid
+  entity_type         String              @db.VarChar(100)
+  entity_id           String?             @db.Uuid
+  action              String              @db.VarChar(50)
+  old_values          Json?
+  new_values          Json?
+  ip_address          String?             @db.Inet
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  tsmib_organizations tsmib_organizations @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_users         tsmib_users?        @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([entity_type, entity_id], map: "ix_audit_logs_entity")
+  @@index([organization_id], map: "ix_audit_logs_organization")
+}
+
+model tsmib_buildings {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  property_id      String             @db.Uuid
+  name             String             @db.VarChar(200)
+  code             String?            @db.VarChar(50)
+  number_of_floors Int?
+  description      String?
+  status           String             @default("ACTIVE") @db.VarChar(30)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  tsmib_apartments tsmib_apartments[]
+  tsmib_properties tsmib_properties   @relation(fields: [property_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tsmib_expenses   tsmib_expenses[]
+  tsmib_floors     tsmib_floors[]
+
+  @@index([property_id], map: "ix_buildings_property")
+}
+
+model tsmib_documents {
+  id                         String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id            String                      @db.Uuid
+  property_id                String?                     @db.Uuid
+  tenant_id                  String?                     @db.Uuid
+  apartment_id               String?                     @db.Uuid
+  lease_id                   String?                     @db.Uuid
+  maintenance_request_id     String?                     @db.Uuid
+  document_type              String                      @db.VarChar(50)
+  file_name                  String                      @db.VarChar(255)
+  file_url                   String
+  storage_key                String?                     @unique(map: "uq_documents_storage_key") @db.VarChar(1024)
+  upload_status              String                      @default("COMPLETE") @db.VarChar(20)
+  mime_type                  String?                     @db.VarChar(100)
+  file_size                  BigInt?
+  uploaded_by                String?                     @db.Uuid
+  created_at                 DateTime                    @default(now()) @db.Timestamptz(6)
+  tsmib_apartments           tsmib_apartments?           @relation(fields: [apartment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_properties           tsmib_properties?           @relation(fields: [property_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_leases               tsmib_leases?               @relation(fields: [lease_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_maintenance_requests tsmib_maintenance_requests? @relation(fields: [maintenance_request_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_organizations        tsmib_organizations         @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_tenants              tsmib_tenants?              @relation(fields: [tenant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_users                tsmib_users?                @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([organization_id], map: "ix_documents_organization")
+}
+
+model tsmib_expense_categories {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String?              @db.Uuid
+  name                String               @db.VarChar(100)
+  is_active           Boolean              @default(true)
+  tsmib_organizations tsmib_organizations? @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_expenses      tsmib_expenses[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tsmib_expenses {
+  id                       String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id          String                    @db.Uuid
+  property_id              String?                   @db.Uuid
+  building_id              String?                   @db.Uuid
+  apartment_id             String?                   @db.Uuid
+  category_id              String?                   @db.Uuid
+  expense_number           String                    @db.VarChar(50)
+  amount                   Decimal                   @db.Decimal(14, 2)
+  expense_date             DateTime                  @db.Date
+  vendor_name              String?                   @db.VarChar(200)
+  invoice_number           String?                   @db.VarChar(100)
+  description              String?
+  created_by               String?                   @db.Uuid
+  created_at               DateTime                  @default(now()) @db.Timestamptz(6)
+  tsmib_apartments         tsmib_apartments?         @relation(fields: [apartment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_buildings          tsmib_buildings?          @relation(fields: [building_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_expense_categories tsmib_expense_categories? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_users              tsmib_users?              @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_organizations      tsmib_organizations       @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_properties         tsmib_properties?         @relation(fields: [property_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([organization_id, expense_number], map: "uq_expense_number")
+  @@index([building_id], map: "ix_expenses_building")
+  @@index([expense_date], map: "ix_expenses_date")
+  @@index([property_id], map: "ix_expenses_property")
+}
+
+model tsmib_floors {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  building_id      String             @db.Uuid
+  floor_number     Int
+  name             String?            @db.VarChar(100)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  tsmib_apartments tsmib_apartments[]
+  tsmib_buildings  tsmib_buildings    @relation(fields: [building_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([building_id, floor_number], map: "uq_floor_building_number")
+}
+
+model tsmib_government_id_type {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String          @unique @db.VarChar(30)
+  name          String          @db.VarChar(100)
+  description   String?         @db.VarChar(255)
+  is_active     Boolean         @default(true)
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+  tsmib_tenants tsmib_tenants[]
+}
+
+model tsmib_lease_tenants {
+  lease_id      String        @db.Uuid
+  tenant_id     String        @db.Uuid
+  is_primary    Boolean       @default(false)
+  tsmib_leases  tsmib_leases  @relation(fields: [lease_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tsmib_tenants tsmib_tenants @relation(fields: [tenant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([lease_id, tenant_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tsmib_leases {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String                @db.Uuid
+  apartment_id        String                @db.Uuid
+  lease_number        String                @db.VarChar(50)
+  start_date          DateTime              @db.Date
+  end_date            DateTime?             @db.Date
+  monthly_rent        Decimal               @db.Decimal(14, 2)
+  security_deposit    Decimal?              @default(0) @db.Decimal(14, 2)
+  rent_due_day        Int                   @default(5) @db.SmallInt
+  late_fee            Decimal?              @default(0) @db.Decimal(14, 2)
+  status              String                @default("ACTIVE") @db.VarChar(30)
+  terminated_at       DateTime?             @db.Timestamptz(6)
+  termination_reason  String?
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @default(now()) @db.Timestamptz(6)
+  tsmib_documents     tsmib_documents[]
+  tsmib_lease_tenants tsmib_lease_tenants[]
+  tsmib_apartments    tsmib_apartments      @relation(fields: [apartment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_organizations tsmib_organizations   @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_rent_charges  tsmib_rent_charges[]
+
+  @@unique([organization_id, lease_number], map: "uq_lease_number")
+  @@index([apartment_id], map: "ix_leases_apartment")
+  @@index([status], map: "ix_leases_status")
+}
+
+model tsmib_maintenance_assignments {
+  id                         String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  maintenance_request_id     String                     @db.Uuid
+  worker_id                  String                     @db.Uuid
+  assigned_at                DateTime                   @default(now()) @db.Timestamptz(6)
+  notes                      String?
+  tsmib_maintenance_requests tsmib_maintenance_requests @relation(fields: [maintenance_request_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tsmib_maintenance_workers  tsmib_maintenance_workers  @relation(fields: [worker_id], references: [id], onUpdate: NoAction)
+}
+
+model tsmib_maintenance_categories {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id            String?                      @db.Uuid
+  name                       String                       @db.VarChar(100)
+  is_active                  Boolean                      @default(true)
+  tsmib_organizations        tsmib_organizations?         @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_maintenance_requests tsmib_maintenance_requests[]
+}
+
+model tsmib_maintenance_priority {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                       String                       @unique @db.VarChar(30)
+  name                       String                       @db.VarChar(100)
+  tsmib_maintenance_requests tsmib_maintenance_requests[]
+}
+
+model tsmib_maintenance_requests {
+  id                            String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id               String                          @db.Uuid
+  apartment_id                  String                          @db.Uuid
+  tenant_id                     String?                         @db.Uuid
+  category_id                   String?                         @db.Uuid
+  request_number                String                          @db.VarChar(50)
+  title                         String                          @db.VarChar(200)
+  description                   String?
+  priority_id                   String                          @db.Uuid
+  status_id                     String                          @db.Uuid
+  estimated_cost                Decimal?                        @db.Decimal(14, 2)
+  actual_cost                   Decimal?                        @db.Decimal(14, 2)
+  requested_at                  DateTime                        @default(now()) @db.Timestamptz(6)
+  completed_at                  DateTime?                       @db.Timestamptz(6)
+  created_at                    DateTime                        @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime                        @default(now()) @db.Timestamptz(6)
+  tsmib_documents               tsmib_documents[]
+  tsmib_maintenance_assignments tsmib_maintenance_assignments[]
+  tsmib_apartments              tsmib_apartments                @relation(fields: [apartment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_maintenance_categories  tsmib_maintenance_categories?   @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_organizations           tsmib_organizations             @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_maintenance_priority    tsmib_maintenance_priority      @relation(fields: [priority_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_maintenance_status      tsmib_maintenance_status        @relation(fields: [status_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_tenants                 tsmib_tenants?                  @relation(fields: [tenant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_maintenance_updates     tsmib_maintenance_updates[]
+
+  @@unique([organization_id, request_number], map: "uq_maintenance_request")
+  @@index([apartment_id], map: "ix_maintenance_apartment")
+  @@index([priority_id], map: "ix_maintenance_priority")
+  @@index([status_id], map: "ix_maintenance_status")
+}
+
+model tsmib_maintenance_status {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                       String                       @unique @db.VarChar(30)
+  name                       String                       @db.VarChar(100)
+  tsmib_maintenance_requests tsmib_maintenance_requests[]
+}
+
+model tsmib_maintenance_updates {
+  id                         String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  maintenance_request_id     String                     @db.Uuid
+  status                     String?                    @db.VarChar(30)
+  comment                    String?
+  created_by                 String?                    @db.Uuid
+  created_at                 DateTime                   @default(now()) @db.Timestamptz(6)
+  tsmib_users                tsmib_users?               @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_maintenance_requests tsmib_maintenance_requests @relation(fields: [maintenance_request_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tsmib_maintenance_workers {
+  id                            String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  worker_name                   String                          @db.VarChar(200)
+  worker_phone                  String?                         @db.VarChar(30)
+  worker_type                   String                          @default("STAFF") @db.VarChar(30)
+  email                         String?                         @db.VarChar(150)
+  company_name                  String?                         @db.VarChar(200)
+  address                       String?
+  is_active                     Boolean                         @default(true)
+  created_at                    DateTime                        @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime                        @default(now()) @db.Timestamptz(6)
+  tsmib_maintenance_assignments tsmib_maintenance_assignments[]
+}
+
+model tsmib_notifications {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String              @db.Uuid
+  user_id             String?             @db.Uuid
+  tenant_id           String?             @db.Uuid
+  title               String              @db.VarChar(200)
+  message             String
+  notification_type   String?             @db.VarChar(50)
+  is_read             Boolean             @default(false)
+  read_at             DateTime?           @db.Timestamptz(6)
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  tsmib_organizations tsmib_organizations @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_tenants       tsmib_tenants?      @relation(fields: [tenant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_users         tsmib_users?        @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenant_id, is_read], map: "ix_notifications_tenant")
+  @@index([user_id, is_read], map: "ix_notifications_user")
+}
+
+model tsmib_push_tokens {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String      @db.Uuid
+  expo_push_token String      @unique @db.VarChar(255)
+  device_name     String?     @db.VarChar(100)
+  created_at      DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime    @default(now()) @db.Timestamptz(6)
+  last_used_at    DateTime?   @db.Timestamptz(6)
+  tsmib_users     tsmib_users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "ix_push_tokens_user")
+}
+
+model tsmib_organizations {
+  id                           String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                         String                         @db.VarChar(200)
+  code                         String                         @unique(map: "uq_organizations_code") @db.VarChar(50)
+  email                        String?                        @db.VarChar(255)
+  phone                        String?                        @db.VarChar(30)
+  status                       String                         @default("ACTIVE") @db.VarChar(30)
+  created_at                   DateTime                       @default(now()) @db.Timestamptz(6)
+  updated_at                   DateTime                       @default(now()) @db.Timestamptz(6)
+  tsmib_audit_logs             tsmib_audit_logs[]
+  tsmib_documents              tsmib_documents[]
+  tsmib_expense_categories     tsmib_expense_categories[]
+  tsmib_expenses               tsmib_expenses[]
+  tsmib_leases                 tsmib_leases[]
+  tsmib_maintenance_categories tsmib_maintenance_categories[]
+  tsmib_maintenance_requests   tsmib_maintenance_requests[]
+  tsmib_notifications          tsmib_notifications[]
+  tsmib_payment_receipts       tsmib_payment_receipts[]
+  tsmib_payments               tsmib_payments[]
+  tsmib_properties             tsmib_properties[]
+  tsmib_rent_charges           tsmib_rent_charges[]
+  tsmib_tenants                tsmib_tenants[]
+  tsmib_users                  tsmib_users[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tsmib_payment_allocations {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payment_id         String             @db.Uuid
+  rent_charge_id     String             @db.Uuid
+  amount             Decimal            @db.Decimal(14, 2)
+  created_at         DateTime           @default(now()) @db.Timestamptz(6)
+  tsmib_payments     tsmib_payments     @relation(fields: [payment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tsmib_rent_charges tsmib_rent_charges @relation(fields: [rent_charge_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([payment_id], map: "ix_payment_allocations_payment")
+  @@index([rent_charge_id], map: "ix_payment_allocations_rent")
+}
+
+model tsmib_payment_method {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String           @unique @db.VarChar(30)
+  name           String           @db.VarChar(100)
+  description    String?          @db.VarChar(255)
+  tsmib_payments tsmib_payments[]
+}
+
+model tsmib_payment_receipts {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String              @db.Uuid
+  payment_id          String              @db.Uuid
+  receipt_number      String              @db.VarChar(100)
+  receipt_url         String?
+  generated_at        DateTime            @default(now()) @db.Timestamptz(6)
+  tsmib_organizations tsmib_organizations @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_payments      tsmib_payments      @relation(fields: [payment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([organization_id, receipt_number], map: "uq_receipt_number")
+}
+
+model tsmib_payments {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id           String                      @db.Uuid
+  tenant_id                 String?                     @db.Uuid
+  apartment_id              String?                     @db.Uuid
+  payment_reference         String?                     @db.VarChar(100)
+  amount                    Decimal                     @db.Decimal(14, 2)
+  payment_date              DateTime                    @default(now()) @db.Timestamptz(6)
+  payment_method_id         String                      @db.Uuid
+  transaction_id            String?                     @db.VarChar(200)
+  status                    String                      @default("SUCCESS") @db.VarChar(30)
+  notes                     String?
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  tsmib_payment_allocations tsmib_payment_allocations[]
+  tsmib_payment_receipts    tsmib_payment_receipts[]
+  tsmib_apartments          tsmib_apartments?           @relation(fields: [apartment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_organizations       tsmib_organizations         @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_payment_method      tsmib_payment_method        @relation(fields: [payment_method_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_tenants             tsmib_tenants?              @relation(fields: [tenant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([apartment_id], map: "ix_payments_apartment")
+  @@index([payment_date], map: "ix_payments_date")
+  @@index([organization_id], map: "ix_payments_organization")
+  @@index([tenant_id], map: "ix_payments_tenant")
+  @@index([transaction_id], map: "ix_payments_transaction")
+}
+
+model tsmib_properties {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String              @db.Uuid
+  name                String              @db.VarChar(200)
+  code                String?             @db.VarChar(50)
+  address_line1       String?             @db.VarChar(255)
+  address_line2       String?             @db.VarChar(255)
+  city                String?             @db.VarChar(100)
+  state               String?             @db.VarChar(100)
+  country             String?             @default("India") @db.VarChar(100)
+  postal_code         String?             @db.VarChar(20)
+  description         String?
+  status              String              @default("ACTIVE") @db.VarChar(30)
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
+  tsmib_buildings     tsmib_buildings[]
+  tsmib_expenses      tsmib_expenses[]
+  tsmib_documents     tsmib_documents[]
+  tsmib_organizations tsmib_organizations @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([organization_id], map: "ix_properties_organization")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tsmib_rent_charges {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id           String                      @db.Uuid
+  lease_id                  String                      @db.Uuid
+  apartment_id              String                      @db.Uuid
+  billing_year              Int                         @db.SmallInt
+  billing_month             Int                         @db.SmallInt
+  due_date                  DateTime                    @db.Date
+  rent_amount               Decimal                     @db.Decimal(14, 2)
+  late_fee                  Decimal                     @default(0) @db.Decimal(14, 2)
+  total_amount              Decimal?                    @default(dbgenerated("(rent_amount + late_fee)")) @db.Decimal(14, 2)
+  rent_status_id            String                      @db.Uuid
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  tsmib_payment_allocations tsmib_payment_allocations[]
+  tsmib_apartments          tsmib_apartments            @relation(fields: [apartment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_leases              tsmib_leases                @relation(fields: [lease_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_organizations       tsmib_organizations         @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_rent_status         tsmib_rent_status           @relation(fields: [rent_status_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([lease_id, billing_year, billing_month], map: "uq_rent_charge")
+  @@index([apartment_id], map: "ix_rent_charges_apartment")
+  @@index([due_date], map: "ix_rent_charges_due_date")
+  @@index([organization_id], map: "ix_rent_charges_organization")
+  @@index([rent_status_id], map: "ix_rent_charges_status")
+}
+
+model tsmib_rent_status {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code               String               @unique @db.VarChar(30)
+  name               String               @db.VarChar(100)
+  description        String?              @db.VarChar(255)
+  is_active          Boolean              @default(true)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  tsmib_rent_charges tsmib_rent_charges[]
+}
+
+model tsmib_roles {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role             String             @db.VarChar(30)
+  tsmib_user_roles tsmib_user_roles[]
+}
+
+model tsmib_tenants {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id            String                       @db.Uuid
+  first_name                 String                       @db.VarChar(100)
+  last_name                  String?                      @db.VarChar(100)
+  email                      String?                      @db.VarChar(255)
+  phone                      String?                      @db.VarChar(30)
+  date_of_birth              DateTime?                    @db.Date
+  emergency_contact_name     String?                      @db.VarChar(200)
+  emergency_contact_phone    String?                      @db.VarChar(30)
+  address                    String?
+  government_id_type_id      String?                      @db.Uuid
+  government_id_number       String?                      @db.VarChar(100)
+  profile_image_url          String?
+  notes                      String?
+  status                     String                       @default("ACTIVE") @db.VarChar(30)
+  created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  tsmib_documents            tsmib_documents[]
+  tsmib_lease_tenants        tsmib_lease_tenants[]
+  tsmib_maintenance_requests tsmib_maintenance_requests[]
+  tsmib_notifications        tsmib_notifications[]
+  tsmib_payments             tsmib_payments[]
+  tsmib_government_id_type   tsmib_government_id_type?    @relation(fields: [government_id_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tsmib_organizations        tsmib_organizations          @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([email], map: "ix_tenants_email")
+  @@index([organization_id], map: "ix_tenants_organization")
+  @@index([phone], map: "ix_tenants_phone")
+}
+
+model tsmib_user_roles {
+  user_id     String      @db.Uuid
+  role_id     String      @db.Uuid
+  tsmib_roles tsmib_roles @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_roles_role")
+  tsmib_users tsmib_users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_roles_user")
+
+  @@id([user_id, role_id])
+}
+
+model tsmib_users {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id           String                      @db.Uuid
+  first_name                String                      @db.VarChar(100)
+  last_name                 String?                     @db.VarChar(100)
+  email                     String?                     @db.VarChar(255)
+  phone                     String?                     @db.VarChar(30)
+  password_hash             String?
+  profile_image_url         String?
+  status                    String                      @default("ACTIVE") @db.VarChar(30)
+  last_login_at             DateTime?                   @db.Timestamptz(6)
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  tsmib_audit_logs          tsmib_audit_logs[]
+  tsmib_documents           tsmib_documents[]
+  tsmib_expenses            tsmib_expenses[]
+  tsmib_maintenance_updates tsmib_maintenance_updates[]
+  tsmib_notifications       tsmib_notifications[]
+  tsmib_push_tokens         tsmib_push_tokens[]
+  tsmib_user_roles          tsmib_user_roles[]
+  tsmib_organizations       tsmib_organizations         @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_organization")
+
+  @@unique([organization_id, email], map: "uq_users_org_email")
+  @@index([organization_id], map: "ix_users_organization")
+  @@index([phone], map: "ix_users_phone")
+}

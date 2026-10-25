@@ -8,21 +8,21 @@ const router = Router();
 // Validation schemas
 const createPropertySchema = z.object({
   name: z.string().min(1, 'Property name is required'),
-  code: z.string().optional(),
-  addressLine1: z.string().optional(),
-  addressLine2: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
+  code: z.string().optional().nullable(),
+  addressLine1: z.string().optional().nullable(),
+  addressLine2: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
   country: z.string().default('India'),
-  postalCode: z.string().optional(),
-  description: z.string().optional(),
+  postalCode: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
 });
 
 const createBuildingSchema = z.object({
   name: z.string().min(1, 'Building name is required'),
-  code: z.string().optional(),
-  numberOfFloors: z.number().int().positive().optional(),
-  description: z.string().optional(),
+  code: z.string().optional().nullable(),
+  numberOfFloors: z.number().int().positive().optional().nullable(),
+  description: z.string().optional().nullable(),
 });
 
 // ================= PROPERTIES =================
@@ -231,7 +231,15 @@ router.put('/:id', requireAuth, requireRole(['OWNER', 'MANAGER', 'ADMIN']), asyn
     const updated = await prisma.tsmib_properties.update({
       where: { id: req.params.id },
       data: {
-        ...data,
+        name: data.name,
+        code: data.code,
+        address_line1: data.addressLine1,
+        address_line2: data.addressLine2,
+        city: data.city,
+        state: data.state,
+        country: data.country,
+        postal_code: data.postalCode,
+        description: data.description,
         updated_at: new Date(),
       },
     });
@@ -242,6 +250,36 @@ router.put('/:id', requireAuth, requireRole(['OWNER', 'MANAGER', 'ADMIN']), asyn
       return res.status(400).json({ error: error.errors[0].message });
     }
     res.status(500).json({ error: error.message || 'Failed to update property' });
+  }
+});
+
+// Delete a property only after all child records have been removed.
+router.delete('/:id', requireAuth, requireRole(['OWNER', 'MANAGER', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const property = await prisma.tsmib_properties.findFirst({
+      where: { id: req.params.id, organization_id: orgId },
+    });
+    if (!property) return res.status(404).json({ error: 'Property not found' });
+
+    const [buildingCount, documentCount, expenseCount] = await Promise.all([
+      prisma.tsmib_buildings.count({ where: { property_id: property.id } }),
+      prisma.tsmib_documents.count({ where: { property_id: property.id } }),
+      prisma.tsmib_expenses.count({ where: { property_id: property.id } }),
+    ]);
+    if (buildingCount || documentCount || expenseCount) {
+      return res.status(409).json({
+        error: 'Cannot delete a property while it has buildings, documents, or expenses. Remove those records first.',
+      });
+    }
+
+    await prisma.tsmib_properties.delete({ where: { id: property.id } });
+    res.json({ message: 'Property deleted successfully' });
+  } catch (error: any) {
+    if (error.code === 'P2003') {
+      return res.status(409).json({ error: 'Cannot delete property because other records reference it.' });
+    }
+    res.status(500).json({ error: error.message || 'Failed to delete property' });
   }
 });
 
@@ -264,7 +302,10 @@ router.put('/buildings/:buildingId', requireAuth, requireRole(['OWNER', 'MANAGER
     const updated = await prisma.tsmib_buildings.update({
       where: { id: req.params.buildingId },
       data: {
-        ...data,
+        name: data.name,
+        code: data.code,
+        number_of_floors: data.numberOfFloors,
+        description: data.description,
         updated_at: new Date(),
       },
     });
@@ -275,6 +316,38 @@ router.put('/buildings/:buildingId', requireAuth, requireRole(['OWNER', 'MANAGER
       return res.status(400).json({ error: error.errors[0].message });
     }
     res.status(500).json({ error: error.message || 'Failed to update building' });
+  }
+});
+
+// Delete a building only when it has no apartments or expenses. Floors are cascaded by the database.
+router.delete('/buildings/:buildingId', requireAuth, requireRole(['OWNER', 'MANAGER', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const orgId = req.user!.organizationId;
+    const building = await prisma.tsmib_buildings.findFirst({
+      where: {
+        id: req.params.buildingId,
+        tsmib_properties: { organization_id: orgId },
+      },
+    });
+    if (!building) return res.status(404).json({ error: 'Building not found' });
+
+    const [apartmentCount, expenseCount] = await Promise.all([
+      prisma.tsmib_apartments.count({ where: { building_id: building.id } }),
+      prisma.tsmib_expenses.count({ where: { building_id: building.id } }),
+    ]);
+    if (apartmentCount || expenseCount) {
+      return res.status(409).json({
+        error: 'Cannot delete a building while it has apartments or expenses. Remove those records first.',
+      });
+    }
+
+    await prisma.tsmib_buildings.delete({ where: { id: building.id } });
+    res.json({ message: 'Building deleted successfully' });
+  } catch (error: any) {
+    if (error.code === 'P2003') {
+      return res.status(409).json({ error: 'Cannot delete building because other records reference it.' });
+    }
+    res.status(500).json({ error: error.message || 'Failed to delete building' });
   }
 });
 

@@ -21,6 +21,7 @@ import expensesRouter from './routes/expenses';
 import notificationsRouter from './routes/notifications';
 import reportsRouter from './routes/reports';
 import documentsRouter from './routes/documents';
+import maintenanceRouter from './routes/maintenance';
 
 dotenv.config();
 
@@ -78,6 +79,7 @@ app.use('/api/expenses', expensesRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/documents', documentsRouter);
+app.use('/api/maintenance', maintenanceRouter);
 
 /**
  * @swagger
@@ -133,6 +135,7 @@ app.get('/', (req: Request, res: Response) => {
       notifications: '/api/notifications',
       reports: '/api/reports',
       documents: '/api/documents',
+      maintenance: '/api/maintenance',
     },
   });
 });

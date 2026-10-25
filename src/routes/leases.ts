@@ -144,10 +144,10 @@ router.patch('/:id', requireAuth, requireRole(['OWNER', 'MANAGER', 'ADMIN']), as
       data: {
         ...(data.startDate && { start_date: new Date(data.startDate) }),
         ...(data.endDate !== undefined && { end_date: data.endDate ? new Date(data.endDate) : null }),
-        ...(data.monthlyRent && { monthly_rent: data.monthlyRent as any }),
-        ...(data.securityDeposit && { security_deposit: data.securityDeposit as any }),
-        ...(data.rentDueDay && { rent_due_day: data.rentDueDay }),
-        ...(data.lateFee && { late_fee: data.lateFee as any }),
+        ...(data.monthlyRent !== undefined && { monthly_rent: data.monthlyRent as any }),
+        ...(data.securityDeposit !== undefined && { security_deposit: data.securityDeposit as any }),
+        ...(data.rentDueDay !== undefined && { rent_due_day: data.rentDueDay }),
+        ...(data.lateFee !== undefined && { late_fee: data.lateFee as any }),
         ...(data.status && { status: data.status }),
       },
     });

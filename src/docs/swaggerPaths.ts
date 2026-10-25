@@ -207,7 +207,7 @@ export const swaggerPaths = {
         404: { description: 'Property not found' },
       },
     },
-    patch: {
+    put: {
       tags: ['Properties'],
       summary: 'Update property',
       security: [{ bearerAuth: [] }],
@@ -229,6 +229,7 @@ export const swaggerPaths = {
       },
       responses: {
         200: { description: 'Property updated' },
+        404: { description: 'Property not found' },
       },
     },
     delete: {
@@ -238,6 +239,79 @@ export const swaggerPaths = {
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
         200: { description: 'Property deleted' },
+        404: { description: 'Property not found' },
+        409: { description: 'Property has buildings, documents, or expenses' },
+      },
+    },
+  },
+  '/api/properties/{propertyId}/buildings': {
+    post: {
+      tags: ['Properties'],
+      summary: 'Create a building inside a property',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'propertyId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['name'],
+              properties: {
+                name: { type: 'string' },
+                code: { type: 'string', nullable: true },
+                numberOfFloors: { type: 'integer', minimum: 1, nullable: true },
+                description: { type: 'string', nullable: true },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        201: { description: 'Building created' },
+        404: { description: 'Property not found in this organization' },
+      },
+    },
+  },
+  '/api/properties/buildings/{buildingId}': {
+    get: {
+      tags: ['Properties'],
+      summary: 'Get building details',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'buildingId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      responses: { 200: { description: 'Building details' }, 404: { description: 'Building not found' } },
+    },
+    put: {
+      tags: ['Properties'],
+      summary: 'Update building',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'buildingId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                code: { type: 'string', nullable: true },
+                numberOfFloors: { type: 'integer', minimum: 1, nullable: true },
+                description: { type: 'string', nullable: true },
+              },
+            },
+          },
+        },
+      },
+      responses: { 200: { description: 'Building updated' }, 404: { description: 'Building not found' } },
+    },
+    delete: {
+      tags: ['Properties'],
+      summary: 'Delete building without apartments or expenses',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'buildingId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      responses: {
+        200: { description: 'Building deleted' },
+        404: { description: 'Building not found' },
+        409: { description: 'Building has apartments or expenses' },
       },
     },
   },
@@ -351,14 +425,16 @@ export const swaggerPaths = {
           'application/json': {
             schema: {
               type: 'object',
-              required: ['apartmentId', 'tenantId', 'startDate', 'rentAmount'],
+              required: ['apartmentId', 'tenantId', 'startDate', 'monthlyRent'],
               properties: {
-                apartmentId: { type: 'string' },
-                tenantId: { type: 'string' },
+                apartmentId: { type: 'string', format: 'uuid' },
+                tenantId: { type: 'string', format: 'uuid' },
                 startDate: { type: 'string', format: 'date', example: '2026-01-01' },
-                endDate: { type: 'string', format: 'date', example: '2026-12-31' },
-                rentAmount: { type: 'number', example: 15000 },
-                securityDepositAmount: { type: 'number', example: 30000 },
+                endDate: { type: 'string', format: 'date', nullable: true, example: '2026-12-31' },
+                monthlyRent: { type: 'number', exclusiveMinimum: 0, example: 15000 },
+                securityDeposit: { type: 'number', minimum: 0, example: 30000 },
+                rentDueDay: { type: 'integer', minimum: 1, maximum: 31, default: 5 },
+                lateFee: { type: 'number', minimum: 0, default: 0 },
               },
             },
           },
@@ -367,6 +443,47 @@ export const swaggerPaths = {
       responses: {
         201: { description: 'Lease created' },
       },
+    },
+  },
+  '/api/leases/{id}': {
+    get: {
+      tags: ['Leases'],
+      summary: 'Get lease details',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      responses: { 200: { description: 'Lease details' }, 404: { description: 'Lease not found' } },
+    },
+    patch: {
+      tags: ['Leases'],
+      summary: 'Update lease terms',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                startDate: { type: 'string', format: 'date' },
+                endDate: { type: 'string', format: 'date', nullable: true },
+                monthlyRent: { type: 'number', exclusiveMinimum: 0 },
+                securityDeposit: { type: 'number', minimum: 0 },
+                rentDueDay: { type: 'integer', minimum: 1, maximum: 31 },
+                lateFee: { type: 'number', minimum: 0 },
+                status: { type: 'string', enum: ['ACTIVE', 'EXPIRED', 'TERMINATED'] },
+              },
+            },
+          },
+        },
+      },
+      responses: { 200: { description: 'Lease updated' }, 404: { description: 'Lease not found' } },
+    },
+    delete: {
+      tags: ['Leases'],
+      summary: 'Terminate lease and mark apartment vacant',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      responses: { 200: { description: 'Lease terminated' }, 404: { description: 'Lease not found' } },
     },
   },
   '/api/rent/charges': {
@@ -720,6 +837,100 @@ export const swaggerPaths = {
       responses: {
         200: { description: 'Expense category deactivated' },
         404: { description: 'Expense category not found' },
+      },
+    },
+  },
+  '/api/maintenance': {
+    get: {
+      tags: ['Maintenance'],
+      summary: 'List maintenance requests visible to the authenticated user',
+      security: [{ bearerAuth: [] }],
+      responses: {
+        200: { description: 'Maintenance requests and pagination details' },
+        401: { description: 'Unauthorized' },
+      },
+    },
+    post: {
+      tags: ['Maintenance'],
+      summary: 'Create a maintenance request for the tenant or on behalf of a tenant',
+      description: 'Tenants can create requests for their active apartment. Owners and managers can submit requests for a tenant with an active lease on the selected apartment.',
+      security: [{ bearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['apartmentId', 'categoryId', 'title', 'description'],
+              properties: {
+                apartmentId: { type: 'string', format: 'uuid' },
+                tenantId: { type: 'string', format: 'uuid', description: 'Required to associate owner-created requests with a tenant.' },
+                categoryId: { type: 'string', format: 'uuid' },
+                priorityCode: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'EMERGENCY'], default: 'MEDIUM' },
+                title: { type: 'string', minLength: 3 },
+                description: { type: 'string', minLength: 5 },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        201: { description: 'Maintenance request created' },
+        400: { description: 'Invalid request or tenant-apartment association' },
+        403: { description: 'Tenant is not authorized for the selected apartment' },
+      },
+    },
+  },
+  '/api/maintenance/{id}': {
+    patch: {
+      tags: ['Maintenance'],
+      summary: 'Edit a maintenance request',
+      description: 'Tenants can edit their own requests while SUBMITTED. Owners and managers can edit requests in their organization until they are completed or cancelled.',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                categoryId: { type: 'string', format: 'uuid' },
+                priorityCode: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'EMERGENCY'] },
+                statusCode: { type: 'string', enum: ['SUBMITTED', 'ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'CANCELLED'], description: 'Owners and managers only.' },
+                title: { type: 'string', minLength: 3 },
+                description: { type: 'string', minLength: 5 },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Maintenance request updated' },
+        403: { description: 'The caller is not authorized to edit this request' },
+        409: { description: 'Request status does not allow editing' },
+      },
+    },
+    delete: {
+      tags: ['Maintenance'],
+      summary: 'Withdraw or cancel a maintenance request',
+      description: 'Tenants can withdraw their own SUBMITTED request. Owners and managers can cancel requests in their organization unless already completed or cancelled. The request history is preserved.',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      responses: {
+        200: { description: 'Maintenance request withdrawn or cancelled' },
+        403: { description: 'The caller is not authorized to withdraw or cancel this request' },
+        409: { description: 'Request status does not allow this action' },
+      },
+    },
+  },
+  '/api/maintenance/meta/lookups': {
+    get: {
+      tags: ['Maintenance'],
+      summary: 'List available maintenance categories and request metadata',
+      security: [{ bearerAuth: [] }],
+      responses: {
+        200: { description: 'Maintenance categories, priorities, statuses, and workers' },
       },
     },
   },
